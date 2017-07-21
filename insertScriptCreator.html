@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<body>
+<script src="Scripts/themoviedb.js"></script>
+<script src="Scripts/DataModels.js"></script>
+<script>
+    function sleep(milliseconds) {
+        var start = new Date().getTime();
+        for (var i = 0; i < 1e7; i++) {
+            if ((new Date().getTime() - start) > milliseconds){
+                break;
+            }
+        }
+    }
+    var idsGlobalArray = new Array;
+    var parsedIds = new Array;
+    var parsedIdsIndex = 0;
+    var scriptText = "";
+    var timesToCall = 10000;
+
+    function downloadIds() {
+        var element = document.createElement('a');
+
+//        console.log("Times called: " + timesCalled);
+//        console.log("Data before download: " + idsGlobalArray.toString())
+        var listData = idsGlobalArray.toString();
+
+
+
+        element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(listData));
+        element.setAttribute('download', "script");
+
+        element.style.display = 'none';
+        document.body.appendChild(element);
+
+        element.click();
+
+        document.body.removeChild(element);
+    }
+    function waitTen()
+    {
+        console.log("Exception Caught, waiting");
+        sleep(40000);
+        theMovieDb.movies.getById({"id" : parsedIds[parsedIdsIndex] , "append_to_response" : "videos,images"}, addToScript, waitTen);
+    }
+
+    function createArray(data) {
+        console.log(timesCalled);
+        if (timesCalled < timesToCall) {
+            var request = new discoverRequestPrototype(data);
+            for (var i = 0; i < request.results.length; i++) {
+                idsGlobalArray.push(request.results[i].id);
+            }
+            console.log(idsGlobalArray.length);
+            timesCalled++;
+            getIdList(timesCalled);
+        }
+        else {
+            downloadIds();
+        }
+    }
+
+    function getIdList(pageNum)
+    {
+        theMovieDb.discover.getMovies({"vote_count.gte" : 30, "sort_by" : "vote_count.desc", "page" : pageNum}, createArray, waitTen)
+
+        console.log("executed");
+
+    }
+
+    function readFile(file)
+    {
+        var rawFile = new XMLHttpRequest();
+        rawFile.open("GET", file, false);
+        rawFile.onreadystatechange = function ()
+        {
+            if(rawFile.readyState === 4)
+            {
+                if(rawFile.status === 200 || rawFile.status == 0)
+                {
+                    var allText = rawFile.responseText;
+                    parsedIds = allText.split(',');
+                }
+            }
+        }
+        rawFile.send(null);
+    }
+
+    function createInsertScript()
+    {
+        scriptText += "INSERT INTO all_movie_data (Id,Adult,BackdropPath,CollectionId,CollectionBackdropPath," +
+            "CollectionName,CollectionPosterPath,Budget,Genre1,Genre2,Genre3,Genre4,Genre5,Genre6,Genre7,Genre8,Genre9" +
+            ",Genre10,Homepage,Image1,Image2,Image3,Image4,Image5,Image6,Image7,Image8,Image9,Image10,IMDBId," +
+            "OriginalLanguage,OriginalTitle,Overview,Popularity,PosterPath,ProductionCompany1,ProductionCompany2," +
+            "ProducitonCompany3,ProductionCompany4,ProductionCompany5,ProductionCountry1,ProductionCountry2,ProductionCountry3," +
+            "ProductionCountry4,ProductionCountry5,ReleaseDate,Revenue,SpokenLanguages1,SpokenLanguages2,SpokenLangauges3," +
+            "SpokenLanguages4,SpokenLanguages5,Status,Tagline,Title,Video1,Video2,Video3,Video4,Video5,VoteAverage,VoteCount)" +
+            "\r\nValues";
+
+
+        theMovieDb.movies.getById({"id" : parsedIds[parsedIdsIndex], "append_to_response" : "videos,images"}, addToScript, errorCB);
+    }
+
+    function downloadScript(text) {
+        var element = document.createElement('a');
+
+        element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+        element.setAttribute('download', "script");
+
+        element.style.display = 'none';
+        document.body.appendChild(element);
+
+        element.click();
+
+        document.body.removeChild(element);
+    }
+
+    function addToScript(data)
+    {
+        console.log(parsedIdsIndex);
+        var parsedObject = JSON.parse(data);
+        scriptText += "\r\n(";
+        addNumber(parsedObject.id);
+        if(parsedObject.adult == "true")
+        {
+            addNumber(1);
+        }
+        else
+        {
+            addNumber(0);
+        }
+        addString(parsedObject.backdrop_path);
+
+        if(parsedObject.belongs_to_collection != null)
+        {
+            addNumber(parsedObject.belongs_to_collection.id);
+            addString(parsedObject.belongs_to_collection.backdrop_path);
+            addString(parsedObject.belongs_to_collection.name);
+            addString(parsedObject.belongs_to_collection.poster_path);
+        }
+        else
+        {
+            addNulls(4);
+        }
+
+        addNumber(parsedObject.budget);
+
+        for(var i = 0; i < parsedObject.genres.length && i < 10; i++)
+        {
+            addString(parsedObject.genres[i].name);
+        }
+        addNulls(10 - parsedObject.genres.length);
+
+        addString(parsedObject.homepage);
+
+        if(parsedObject.images != null)
+        {
+            console.log(parsedObject.images);
+            for(var i = 0; i < parsedObject.images.posters.length && i < 10; i++)
+            {
+                addString(parsedObject.images.posters[i].file_path);
+            }
+            addNulls(10 - parsedObject.images.posters.length);
+        }
+        else
+        {
+            console.log("adding nulls");
+            addNulls(10);
+        }
+
+        addString(parsedObject.imdb_id);
+        addString(parsedObject.original_language);
+        addString(parsedObject.original_title);
+        addString(parsedObject.overview);
+        addNumber(parsedObject.popularity);
+        addString(parsedObject.poster_path);
+
+        for(var i = 0; i < parsedObject.production_companies.length && i < 5; i++)
+        {
+            addString(parsedObject.production_companies[i].name);
+        }
+        addNulls(5 - parsedObject.production_companies.length);
+
+        for(var i = 0; i < parsedObject.production_countries.length && i < 5; i++)
+        {
+            addString(parsedObject.production_countries[i].name);
+        }
+        addNulls(5 - parsedObject.production_countries.length);
+
+        addString(parsedObject.release_date);
+        addNumber(parsedObject.revenue);
+
+        for(var i = 0; i < parsedObject.spoken_languages.length && i < 5; i++)
+        {
+            addString(parsedObject.spoken_languages[i].name);
+        }
+        addNulls(5 - parsedObject.spoken_languages.length);
+
+        addString(parsedObject.status);
+        addString(parsedObject.tagline);
+        addString(parsedObject.title);
+
+        if(parsedObject.videos != null)
+        {
+            for(var i = 0; i < parsedObject.videos.results.length && i < 5; i++)
+            {
+                addString(parsedObject.videos.results[i].key);
+            }
+            addNulls(5 - parsedObject.videos.results.length);
+        }
+        else
+        {
+            console.log("adding nulls");
+            addNulls(5);
+        }
+
+        addNumber(parsedObject.vote_average);
+
+        scriptText += parsedObject.vote_count + ")";
+
+        parsedIdsIndex++;
+        if(parsedIdsIndex < timesToCall)
+        {
+            if((parsedIdsIndex % 1000 == 0) && parsedIdsIndex != 0)
+            {
+                scriptText += ";";
+                downloadScript(scriptText);
+                scriptText = "";
+                createInsertScript();
+            }
+            else
+            {
+                scriptText += ",";
+                theMovieDb.movies.getById({"id" : parsedIds[parsedIdsIndex] , "append_to_response" : "videos,images"}, addToScript, waitTen);
+            }
+        }
+        else
+        {
+            scriptText += ";";
+            downloadScript(scriptText);
+        }
+
+    }
+
+    function addString(text)
+    {
+        if(text != null)
+        {
+            text = text.replace(/"/g, "\\\"");
+            text = text.replace(/'/g, "\\\'");
+        }
+        scriptText += "\"" + text + "\", ";
+    }
+
+    function addNumber(number)
+    {
+        scriptText += number + ", ";
+    }
+
+    function addNulls(numNulls)
+    {
+        for(var i = 0; i < numNulls; i++)
+        {
+            scriptText += "NULL, ";
+        }
+    }
+
+
+
+</script>
+
+
+
+<button id="myButton", onclick="getIdList(1)">Download Top 10000 IDs</button>
+<button id="button2", onclick="readFile('TopTenThousandIds.txt')">Read File</button>
+<button id="button3", onclick="createInsertScript()">Create Insert Script</button>
+<p id = "myParagraph">Para</p>
+<table style="width:50%" border ="1" id="idTable">
+    <th>Movie Name</th>
+    <th>Movie ID</th>
+</table>
+
+</body>
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+</html>
